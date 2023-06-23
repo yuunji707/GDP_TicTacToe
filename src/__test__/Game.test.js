@@ -2,6 +2,8 @@ import React from 'react';
 import { render, fireEvent, waitFor, queryAllByTestId } from '@testing-library/react';
 import Game from '../Game';
 
+
+//tests don't pass
 describe('Game component', () => {
   it('symbol selection, square click, computer move, winning pattern, restart', async () => {
 
