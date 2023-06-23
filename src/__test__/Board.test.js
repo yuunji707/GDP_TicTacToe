@@ -14,7 +14,7 @@ describe('Board component', () => {
     expect(oSquares.length).toBe(1);
   });
 
-  it('check onClick is being clled', () => {
+  it('check onClick is being called', () => {
     const squares = ['', '', '', '', '', '', '', '', ''];
     const onClick = jest.fn();
     const { container } = render(<Board squares={squares} onClick={onClick} />);
