@@ -1,75 +1,107 @@
-//game.js file
-
-
 import React, { useState, useEffect } from 'react';
 import Board from './Board';
+import { getRandomMove } from './aiLogic';
 
 const Game = () => {
 
+  const BOARD_IS = Array(9).fill('')
+  const X_SYMBOL = 'X'
+  const O_SYMBOL = 'O'
+  const RANDOM_NUM_FIRST_TURN = Math.random() < 0.5 
+  
   /* 
   useState() for 
   -Game board squares
   -Track the player's turn
   -Which symbol the player chose
-  -Computer's chosen symbol
   -Winner of the game
   -Showing the the symbol selection option
+  -RestartConfirmation(requires two clicks for mid game)
+  -Track the number of turns
   */
-  const [squares, setSquares] = useState(Array(9).fill(''));
-  const [isPlayerX, setIsPlayerX] = useState(true);
+  const [squares, setSquares] = useState(BOARD_IS);
+  const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [playerSymbol, setPlayerSymbol] = useState('');
-  const [computerSymbol, setComputerSymbol] = useState('');
   const [winner, setWinner] = useState(null);
   const [showSymbolSelection, setShowSymbolSelection] = useState(true);
-
-  //useEffect to check for winner after every turn based on squares
-  useEffect(() => {
-
-    const winningCombos = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], //rows
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], //cols
-      [0, 4, 8], [2, 4, 6] //diagonals
-    ];
+  const [restartConfirmation, setRestartConfirmation] = useState(false);
+  const [turnCount, setTurnCount] = useState(0); 
 
 
-    //check for winning combos
-    const checkWinner = () => {
-      for (let combo of winningCombos) {
-        const [a, b, c] = combo;
-        if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-          setWinner(squares[a]);
-          break;
-        }
-      }
-    };
+  const checkWinner = (symbol) => {
 
-    checkWinner();
-
-    //CPU logic, check for no winner, CPU's turn, and if symbols have been selected
-    if (!winner && isPlayerX === false && playerSymbol !== '' && computerSymbol !== '') 
+    const dimension = Math.sqrt(squares.length);
+    //Iterate over rows and columns
+    for (let i = 0; i < dimension; i++) 
     {
-      //reduce func to check available squares
-      const availableSquares = squares.reduce((acc, curr, index) => {
-        if (!curr) 
+      const row = [];
+      const column = [];
+      //Calculate indices and populate corresponding arrays 
+      for (let j = 0; j < dimension; j++) 
+      {
+        row.push(squares[i * dimension + j]);
+        column.push(squares[j * dimension + i]);
+      }
+      //every() checks if all the elements in the array are equal which is a winning combo
+      if (row.every((value) => value === symbol) || 
+          column.every((value) => value === symbol)) 
+      {return true;}
+    }
+
+    //Same thing with diagonals. No need to nest inside the top loop.
+    const mainDiagonal = [];
+    const secondaryDiagonal = [];
+    for (let i = 0; i < dimension; i++) 
+    {
+      mainDiagonal.push(squares[i * (dimension + 1)]);
+      secondaryDiagonal.push(squares[(i + 1) * (dimension - 1)]);
+    }
+
+    if (mainDiagonal.every((value) => value === symbol) ||
+       secondaryDiagonal.every((value) => value === symbol)) 
+    {return true;}
+
+    return false; //No winning combos
+  };
+  
+  //useEffect to check for winner after enough turns have been made
+  useEffect(() => {
+    
+    //CPU logic, check for no winner, CPU's turn, and if symbols have been selected
+    if (!winner && !isPlayerTurn && playerSymbol !== '' && computerSymbol !== '') 
+    {
+      //Reduce function to check for available squares
+      const availableSquares = squares.reduce((OpenSquares, CurrentSquare, CurrentSquareIndex) => {
+        if (!CurrentSquare) 
         {
-          return [...acc, index];
+          return [...OpenSquares, CurrentSquareIndex];
         }
-        return acc;
+        return OpenSquares;
       }, []);
 
-      //Computer's move
+      //Computer's move, pass available squares into getRandomMove
       if (availableSquares.length > 0) 
       {
-        const randomIndex = Math.floor(Math.random() * availableSquares.length);
-        const computerChoice = availableSquares[randomIndex];
+        const aiMove = getRandomMove(availableSquares);
         const updatedSquares = [...squares];
-        
-        updatedSquares[computerChoice] = computerSymbol;
+        updatedSquares[aiMove] = computerSymbol;
         setSquares(updatedSquares);
-        setIsPlayerX(true);
+        setIsPlayerTurn(true);
       }
     }
-  }, squares);
+    
+    const dimension = Math.sqrt(squares.length);
+    const MIN_TURNS_FOR_WIN = (dimension * 2) - 1 //5
+    setTurnCount((prevTurnCount) => prevTurnCount + 1);
+
+    //Check for winner and setWinner. Only check if enough turns have been made
+    if(turnCount >= MIN_TURNS_FOR_WIN)
+    {
+    if (checkWinner(playerSymbol)) {setWinner(playerSymbol);} 
+    else if (checkWinner(computerSymbol)) {setWinner(computerSymbol);}
+    }
+
+  }, [squares, isPlayerTurn]);
 
   const handleClick = (index) => {
     //Check for square is occupied, for winner, and for symbol selection.
@@ -80,41 +112,39 @@ const Game = () => {
     const updatedSquares = [...squares];
     updatedSquares[index] = playerSymbol;
     setSquares(updatedSquares);
-    setIsPlayerX(!isPlayerX);
+    setIsPlayerTurn(!isPlayerTurn);
     setShowSymbolSelection(false);
   };
 
-//Restart button
+//Restart button. Prompts "are you sure?" if mid game
 const handleRestart = () => {
-  setSquares(Array(9).fill(''));
-  setIsPlayerX(true);
-  setWinner(null);
-  setPlayerSymbol('');
-  setComputerSymbol('');
-  setShowSymbolSelection(true);
+  if (isBoardFull || winner || restartConfirmation) {
+    setSquares(BOARD_IS);
+    setIsPlayerTurn(true);
+    setWinner(null);
+    setPlayerSymbol('');
+    setShowSymbolSelection(true);
+    setRestartConfirmation(false);
+    setTurnCount(0)
+  } else {
+    setRestartConfirmation(true);
+  }
 };
 
-  //Select symbol
+  //Select symbol and display user selection
   const handleSymbolChange = (symbol) => {
-    if (symbol === 'X') {
-      setPlayerSymbol('X');
-      setComputerSymbol('O');
-    } else {
-      setPlayerSymbol('O');
-      setComputerSymbol('X');
-    }
+    setPlayerSymbol(symbol === X_SYMBOL ? X_SYMBOL : O_SYMBOL);
+    setIsPlayerTurn(RANDOM_NUM_FIRST_TURN); // Randomize the first turn
+    setShowSymbolSelection(false);
   };
 
+  const computerSymbol = playerSymbol === X_SYMBOL ? O_SYMBOL : X_SYMBOL;
   const isBoardFull = squares.every((square) => square !== '');
 
   let status;
-  if (winner) {
-    status = `Winner: ${winner}`;
-  } else if (isBoardFull) {
-    status = "It's a draw!";
-  } else {
-    status = `Next Player: ${isPlayerX ? playerSymbol : computerSymbol}`;
-  }
+  if (winner) {status = `Winner: ${winner}`;} 
+  else if (isBoardFull) {status = "It's a draw!";} 
+  else {status = `Next Player: ${isPlayerTurn ? playerSymbol : computerSymbol}`;}
 
   return (
     <div className="game">
@@ -122,25 +152,29 @@ const handleRestart = () => {
       {showSymbolSelection ? (
         <div className="symbol-selection">
           <span>Select your symbol: </span>
-          <button className="symbol-button" onClick={() => handleSymbolChange('X')}>
+          <button className="symbol-button" onClick={() => handleSymbolChange(X_SYMBOL)}>
             X
           </button>
-          <button className="symbol-button" onClick={() => handleSymbolChange('O')}>
+          <button className="symbol-button" onClick={() => handleSymbolChange(O_SYMBOL)}>
             O
           </button>
         </div>
-      ) : null}
+      ) : (
+        <div className="symbol-selection">
+          <span>You selected symbol: </span>
+          <span>{playerSymbol}</span>
+        </div>
+      )}
       <div className="status">{status}</div>
       <Board squares={squares} onClick={handleClick} />
       <button className="restart" onClick={handleRestart}>
-        Restart
+        {restartConfirmation ? 'Are you sure?' : 'Restart'}
       </button>
     </div>
   );
 };
 
 export default Game;
-
 
 //unused sleep function
 function sleep(milliseconds) {
